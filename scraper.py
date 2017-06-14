@@ -9,9 +9,7 @@ import urllib2
 from datetime import datetime
 from bs4 import BeautifulSoup
 
-
-#### FUNCTIONS 1.1
-import requests   #import requests for validating urls
+#### FUNCTIONS 1.0
 
 def validateFilename(filename):
     filenameregex = '^[a-zA-Z0-9]+_[a-zA-Z0-9]+_[a-zA-Z0-9]+_[0-9][0-9][0-9][0-9]_[0-9QY][0-9]$'
@@ -39,19 +37,19 @@ def validateFilename(filename):
 
 def validateURL(url):
     try:
-        r = requests.get(url)
+        r = urllib2.urlopen(url)
         count = 1
-        while r.status_code == 500 and count < 4:
+        while r.getcode() == 500 and count < 4:
             print ("Attempt {0} - Status code: {1}. Retrying.".format(count, r.status_code))
             count += 1
-            r = requests.get(url)
+            r = urllib2.urlopen(url)
         sourceFilename = r.headers.get('Content-Disposition')
 
         if sourceFilename:
             ext = os.path.splitext(sourceFilename)[1].replace('"', '').replace(';', '').replace(' ', '')
         else:
             ext = os.path.splitext(url)[1]
-        validURL = r.status_code == 200
+        validURL = r.getcode() == 200
         validFiletype = ext.lower() in ['.csv', '.xls', '.zip', '.xlsx', '.pdf']
         return validURL, validFiletype
     except:
@@ -86,8 +84,8 @@ def convert_mth_strings ( mth_string ):
 
 #### VARIABLES 1.0
 
-entity_id = "NHTRTVFT_5BPNFT_gov"
-url = "http://www.5boroughspartnership.nhs.uk/financial-transparency-reports/"
+entity_id = "NFTRYG_CAWPNT_gov"
+url = "https://www.covwarkpt.nhs.uk/search?term=25k&search=Search&searchType=all"
 errors = 0
 data = []
 
@@ -100,13 +98,26 @@ soup = BeautifulSoup(html, 'lxml')
 #### SCRAPE DATA
 
 
-blocks = soup.find('div', 'related_docs').find_all('a')
-for block in blocks:
-    url = 'http://www.5boroughspartnership.nhs.uk' + block['href']
-    csvMth = block.text.split()[0][:3]
-    csvYr = block.text.split()[-1]
-    csvMth = convert_mth_strings(csvMth.upper())
-    data.append([csvYr, csvMth, url])
+for i in range(1, 6):
+    link_page = "https://www.covwarkpt.nhs.uk/search?searchtype=all&term=25k&selpage={}&perpage=20&update=Update".format(i)
+    html_page = urllib2.urlopen(link_page)
+    soup_page = BeautifulSoup(html_page, 'lxml')
+    blocks = soup_page.find('ol', 'site-search-results').find_all('h3')
+    for block in blocks:
+        link = block.find('a')
+        if '.csv' in link['href']:
+            url = 'https://www.covwarkpt.nhs.uk' + link['href']
+            url_text = link.text.split('25k')[-1].split('.csv')[0].replace('Doh spend over 25K', '').strip()
+            if '-' in url_text:
+                csvMth = 'Q0'
+                csvYr = url_text.split()[-1]
+            else:
+                csvMth = url_text[:3]
+                csvYr = '20' + url_text[-2:]
+            csvMth = convert_mth_strings(csvMth.upper())
+            data.append([csvYr, csvMth, url])
+
+
 
 
 #### STORE DATA 1.0
